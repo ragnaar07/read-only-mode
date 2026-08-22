@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TimeLog</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TimeLog">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d1117">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <!-- TODAY -->
+  <div class="view active" id="view-today">
+    <div class="top"><span class="title">TimeLog</span><span class="date" id="today-date"></span></div>
+
+    <div class="timer-card">
+      <div id="timer-idle">
+        <div class="timer-input-row">
+          <input class="timer-input" id="activity-input" placeholder="What are you working on?" maxlength="60">
+          <button class="btn btn-start" id="start-btn">Start</button>
+        </div>
+      </div>
+      <div class="active-timer" id="active-timer">
+        <div class="activity" id="active-activity"></div>
+        <div class="clock" id="active-clock">00:00:00</div>
+        <div class="timer-controls">
+          <button class="btn btn-pause" id="pause-btn">Pause</button>
+          <button class="btn btn-stop" id="stop-btn">Stop</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Today's tasks</div>
+    <div class="task-add-row">
+      <input class="timer-input" id="task-input" placeholder="Add a task..." maxlength="60">
+      <button class="btn btn-start" id="task-add-btn">Add</button>
+    </div>
+    <label class="repeat-toggle">
+      <input type="checkbox" id="repeat-checkbox">
+      <span>🔁 Repeat daily (auto-adds this task every day)</span>
+    </label>
+    <div id="task-list"></div>
+
+    <div class="recurring-block" id="recurring-block" style="display:none;">
+      <div class="section-title">Repeating daily</div>
+      <div id="recurring-list"></div>
+    </div>
+
+    <div class="footer-stats">
+      <div class="fs"><div class="v" id="stat-time">0m</div><div class="l">time today</div></div>
+      <div class="fs"><div class="v" id="stat-tasks">0%</div><div class="l">tasks done</div></div>
+      <div class="fs streak"><div class="v" id="stat-streak">0</div><div class="l">🔥 streak</div></div>
+    </div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="view" id="view-progress">
+    <div class="top"><span class="title">Progress</span></div>
+    <div class="section-title">This week (time)</div>
+    <div class="week-chart" id="week-chart"></div>
+    <div class="section-title">Time by activity (last 30 days)</div>
+    <div id="activity-progress"></div>
+    <button class="export-btn" id="export-btn">Export backup (JSON)</button>
+  </div>
+
+  <!-- HEATMAP -->
+  <div class="view" id="view-heatmap">
+    <div class="top"><span class="title">Heatmap</span></div>
+    <div class="heatmap-header" id="heatmap-header">0 active days in the last year</div>
+    <div class="heatmap-scroll">
+      <div class="heatmap-inner">
+        <div class="hm-months" id="hm-months"></div>
+        <div class="hm-body">
+          <div class="hm-daylabels">
+            <div class="hm-daylabel"></div>
+            <div class="hm-daylabel">Mon</div>
+            <div class="hm-daylabel"></div>
+            <div class="hm-daylabel">Wed</div>
+            <div class="hm-daylabel"></div>
+            <div class="hm-daylabel">Fri</div>
+            <div class="hm-daylabel"></div>
+          </div>
+          <div id="hm-grid" style="display:flex;gap:3px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="hm-legend">
+      Less
+      <div class="hm-cell" style="background:var(--border)"></div>
+      <div class="hm-cell" style="background:var(--green1)"></div>
+      <div class="hm-cell" style="background:var(--green2)"></div>
+      <div class="hm-cell" style="background:var(--green3)"></div>
+      <div class="hm-cell" style="background:var(--green)"></div>
+      More
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="view" id="view-history">
+    <div class="top"><span class="title">History</span></div>
+    <div id="history-list"></div>
+    <button class="load-more" id="load-more-btn">Load more</button>
+  </div>
+
+</div>
+
+<div class="hm-tooltip" id="hm-tooltip"></div>
+
+<nav>
+  <button class="active" data-view="today">Today</button>
+  <button data-view="progress">Progress</button>
+  <button data-view="heatmap">Heatmap</button>
+  <button data-view="history">History</button>
+</nav>
+
+<script src="js/app.js"></script>
+</body>
+</html>
