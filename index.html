@@ -9,17 +9,39 @@
 <meta name="apple-mobile-web-app-title" content="TimeLog">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0d1117">
+<meta name="theme-color" content="#f6f7fb">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <div class="wrap">
+  <div class="app-controls">
+    <button class="icon-btn" id="theme-toggle" type="button" aria-label="Switch to dark mode">☾</button>
+    <button class="pill-btn" id="notify-btn" type="button">Notifications off</button>
+  </div>
 
   <!-- TODAY -->
   <div class="view active" id="view-today">
-    <div class="top"><span class="title">TimeLog</span><span class="date" id="today-date"></span></div>
+    <div class="top app-top">
+      <div>
+        <span class="eyebrow">Today</span>
+        <h1 class="title">TimeLog</h1>
+      </div>
+      <span class="date" id="today-date"></span>
+    </div>
+
+    <div class="footer-stats">
+      <div class="fs"><div class="v" id="stat-time">0m</div><div class="l">tracked</div></div>
+      <div class="fs"><div class="v" id="stat-tasks">0%</div><div class="l">tasks done</div></div>
+      <div class="fs streak"><div class="v" id="stat-streak">0</div><div class="l">day streak</div></div>
+    </div>
 
     <div class="timer-card">
+      <div class="panel-head">
+        <div>
+          <div class="section-title">Focus timer</div>
+          <p>Start a session or tap a task below.</p>
+        </div>
+      </div>
       <div id="timer-idle">
         <div class="timer-input-row">
           <input class="timer-input" id="activity-input" placeholder="What are you working on?" maxlength="60">
@@ -36,76 +58,91 @@
       </div>
     </div>
 
-    <div class="section-title">Today's tasks</div>
-    <div class="task-add-row">
-      <input class="timer-input" id="task-input" placeholder="Add a task..." maxlength="60">
-      <button class="btn btn-start" id="task-add-btn">Add</button>
-    </div>
-    <label class="repeat-toggle">
-      <input type="checkbox" id="repeat-checkbox">
-      <span>🔁 Repeat daily (auto-adds this task every day)</span>
-    </label>
-    <div id="task-list"></div>
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="section-title">Today's tasks</div>
+          <p>Plan, check off, and track work from one list.</p>
+        </div>
+      </div>
+      <div class="task-add-row">
+        <input class="timer-input" id="task-input" placeholder="Add a task..." maxlength="60">
+        <button class="btn btn-start" id="task-add-btn">Add</button>
+      </div>
+      <label class="repeat-toggle">
+        <input type="checkbox" id="repeat-checkbox">
+        <span>Repeat daily</span>
+      </label>
+      <div id="task-list"></div>
+    </section>
 
-    <div class="recurring-block" id="recurring-block" style="display:none;">
+    <section class="recurring-block panel" id="recurring-block" style="display:none;">
       <div class="section-title">Repeating daily</div>
       <div id="recurring-list"></div>
-    </div>
-
-    <div class="footer-stats">
-      <div class="fs"><div class="v" id="stat-time">0m</div><div class="l">time today</div></div>
-      <div class="fs"><div class="v" id="stat-tasks">0%</div><div class="l">tasks done</div></div>
-      <div class="fs streak"><div class="v" id="stat-streak">0</div><div class="l">🔥 streak</div></div>
-    </div>
+    </section>
   </div>
 
   <!-- PROGRESS -->
   <div class="view" id="view-progress">
-    <div class="top"><span class="title">Progress</span></div>
-    <div class="section-title">This week (time)</div>
-    <div class="week-chart" id="week-chart"></div>
-    <div class="section-title">Time by activity (last 30 days)</div>
-    <div id="activity-progress"></div>
-    <button class="export-btn" id="export-btn">Export backup (JSON)</button>
+    <div class="top"><div><span class="eyebrow">Insights</span><h1 class="title">Progress</h1></div></div>
+    <div class="progress-summary">
+      <div class="fs"><div class="v" id="progress-today">0s</div><div class="l">today</div></div>
+      <div class="fs"><div class="v" id="progress-week">0s</div><div class="l">7 days</div></div>
+      <div class="fs"><div class="v" id="progress-total">0s</div><div class="l">all time</div></div>
+    </div>
+    <section class="panel">
+      <div class="section-title">Daily time</div>
+      <div class="week-chart" id="week-chart"></div>
+    </section>
+    <section class="panel">
+      <div class="section-title">Total time by activity</div>
+      <div id="activity-progress"></div>
+    </section>
+    <button class="export-btn" id="export-btn">Export backup</button>
   </div>
 
   <!-- HEATMAP -->
   <div class="view" id="view-heatmap">
-    <div class="top"><span class="title">Heatmap</span></div>
-    <div class="heatmap-header" id="heatmap-header">0 active days in the last year</div>
-    <div class="heatmap-scroll">
-      <div class="heatmap-inner">
-        <div class="hm-months" id="hm-months"></div>
-        <div class="hm-body">
-          <div class="hm-daylabels">
-            <div class="hm-daylabel"></div>
-            <div class="hm-daylabel">Mon</div>
-            <div class="hm-daylabel"></div>
-            <div class="hm-daylabel">Wed</div>
-            <div class="hm-daylabel"></div>
-            <div class="hm-daylabel">Fri</div>
-            <div class="hm-daylabel"></div>
+    <div class="top"><div><span class="eyebrow">Consistency</span><h1 class="title">Heatmap</h1></div></div>
+    <section class="panel heatmap-panel">
+      <div class="heatmap-header" id="heatmap-header">0 active days in the last year</div>
+      <div class="heatmap-scroll">
+        <div class="heatmap-inner">
+          <div class="hm-months" id="hm-months"></div>
+          <div class="hm-body">
+            <div class="hm-daylabels">
+              <div class="hm-daylabel"></div>
+              <div class="hm-daylabel">Mon</div>
+              <div class="hm-daylabel"></div>
+              <div class="hm-daylabel">Wed</div>
+              <div class="hm-daylabel"></div>
+              <div class="hm-daylabel">Fri</div>
+              <div class="hm-daylabel"></div>
+            </div>
+            <div id="hm-grid" style="display:flex;gap:3px;"></div>
           </div>
-          <div id="hm-grid" style="display:flex;gap:3px;"></div>
         </div>
       </div>
-    </div>
-    <div class="hm-legend">
-      Less
-      <div class="hm-cell" style="background:var(--border)"></div>
-      <div class="hm-cell" style="background:var(--green1)"></div>
-      <div class="hm-cell" style="background:var(--green2)"></div>
-      <div class="hm-cell" style="background:var(--green3)"></div>
-      <div class="hm-cell" style="background:var(--green)"></div>
-      More
-    </div>
+      <div class="hm-legend">
+        Less
+        <div class="hm-cell" style="background:var(--border)"></div>
+        <div class="hm-cell" style="background:var(--green1)"></div>
+        <div class="hm-cell" style="background:var(--green2)"></div>
+        <div class="hm-cell" style="background:var(--green3)"></div>
+        <div class="hm-cell" style="background:var(--green)"></div>
+        More
+      </div>
+    </section>
   </div>
 
   <!-- HISTORY -->
   <div class="view" id="view-history">
-    <div class="top"><span class="title">History</span></div>
-    <div id="history-list"></div>
-    <button class="load-more" id="load-more-btn">Load more</button>
+    <div class="top"><div><span class="eyebrow">Archive</span><h1 class="title">History</h1></div></div>
+    <section class="panel">
+      <div class="section-title history-title">Daily logs</div>
+      <div id="history-list"></div>
+      <button class="load-more" id="load-more-btn">Load more</button>
+    </section>
   </div>
 
 </div>
@@ -113,10 +150,10 @@
 <div class="hm-tooltip" id="hm-tooltip"></div>
 
 <nav>
-  <button class="active" data-view="today">Today</button>
-  <button data-view="progress">Progress</button>
-  <button data-view="heatmap">Heatmap</button>
-  <button data-view="history">History</button>
+  <button class="active" data-view="today"><span class="nav-icon">⌂</span><span>Today</span></button>
+  <button data-view="progress"><span class="nav-icon">▥</span><span>Progress</span></button>
+  <button data-view="heatmap"><span class="nav-icon">◼</span><span>Heatmap</span></button>
+  <button data-view="history"><span class="nav-icon">◷</span><span>History</span></button>
 </nav>
 
 <script src="js/app.js"></script>

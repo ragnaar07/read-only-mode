@@ -2,9 +2,12 @@
   "use strict";
 
   var STORE_KEY = "timelog-v1";
+  var UI_PREFS_KEY = "timelog-ui-v1";
   var HISTORY_PAGE = 20;
   var historyShown = HISTORY_PAGE;
   var tickInterval = null;
+  var notifyInterval = null;
+  var swRegistration = null;
 
   function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
   function pad(n){ return String(n).padStart(2,"0"); }
@@ -45,6 +48,20 @@
   if(data.activeSession === undefined) data.activeSession = null;
   if(!data.recurringTasks) data.recurringTasks = []; // [{id, name}]
 
+  function loadPrefs(){
+    try{
+      var raw = localStorage.getItem(UI_PREFS_KEY);
+      return raw ? JSON.parse(raw) : {theme:"light", notifications:false};
+    }catch(e){ return {theme:"light", notifications:false}; }
+  }
+  function savePrefs(){
+    try{ localStorage.setItem(UI_PREFS_KEY, JSON.stringify(ui)); }
+    catch(e){ console.error("prefs save failed", e); }
+  }
+  var ui = loadPrefs();
+  if(ui.theme !== "dark") ui.theme = "light";
+  ui.notifications = !!ui.notifications;
+
   function getRecord(key){
     if(!data.records[key]) data.records[key] = {tasks:[], sessions:[]};
     if(!data.records[key].tasks) data.records[key].tasks = [];
@@ -74,6 +91,110 @@
     var done = rec.tasks.filter(function(t){ return t.done; }).length;
     return Math.round((done/rec.tasks.length)*100);
   }
+  function allTimeTotalSec(){
+    return Object.keys(data.records).reduce(function(sum,k){
+      return sum + dayTotalSec(data.records[k]);
+    }, 0);
+  }
+
+  // ---------- UI preferences ----------
+  function applyTheme(){
+    document.body.setAttribute("data-theme", ui.theme);
+    var btn = document.getElementById("theme-toggle");
+    if(btn){
+      btn.textContent = ui.theme === "dark" ? "☀" : "☾";
+      btn.setAttribute("aria-label", ui.theme === "dark" ? "Switch to light mode" : "Switch to dark mode");
+    }
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if(meta) meta.setAttribute("content", ui.theme === "dark" ? "#0b1020" : "#f6f7fb");
+  }
+
+  function notificationsSupported(){
+    return "Notification" in window;
+  }
+  function canNotify(){
+    return ui.notifications && notificationsSupported() && Notification.permission === "granted";
+  }
+  function renderNotifyButton(){
+    var btn = document.getElementById("notify-btn");
+    if(!btn) return;
+    if(!notificationsSupported()){
+      btn.textContent = "Notifications unavailable";
+      btn.disabled = true;
+      btn.classList.remove("on");
+      return;
+    }
+    if(Notification.permission === "denied"){
+      btn.textContent = "Notifications blocked";
+      btn.classList.remove("on");
+      return;
+    }
+    btn.textContent = ui.notifications && Notification.permission === "granted" ? "Notifications on" : "Notifications off";
+    btn.classList.toggle("on", ui.notifications && Notification.permission === "granted");
+  }
+  function activeNotificationPayload(status, activity, elapsedSec){
+    var title = status === "done" ? "Timer saved" : (status === "paused" ? "Timer paused" : "Timer running");
+    return {
+      title: title,
+      body: activity + " • " + fmtDur(elapsedSec || 0),
+      tag: status === "done" ? "timelog-complete" : "timelog-active",
+      requireInteraction: status !== "done",
+      silent: status !== "done",
+      icon: "icons/icon-192.png",
+      badge: "icons/icon-192.png",
+      data: {url:"./index.html"}
+    };
+  }
+  function getServiceWorkerRegistration(){
+    if(!("serviceWorker" in navigator)) return Promise.resolve(null);
+    if(swRegistration) return Promise.resolve(swRegistration);
+    return navigator.serviceWorker.ready.then(function(reg){
+      swRegistration = reg;
+      return reg;
+    }).catch(function(){ return null; });
+  }
+  function closeActiveTimerNotification(){
+    if(!canNotify()) return;
+    getServiceWorkerRegistration().then(function(reg){
+      if(reg && reg.getNotifications){
+        reg.getNotifications({tag:"timelog-active"}).then(function(list){
+          list.forEach(function(n){ n.close(); });
+        });
+      }
+    });
+  }
+  function showTimerNotification(status, activity, elapsedSec){
+    if(!canNotify()) return;
+    var payload = activeNotificationPayload(status, activity, elapsedSec);
+    getServiceWorkerRegistration().then(function(reg){
+      var opts = {
+        body: payload.body,
+        tag: payload.tag,
+        requireInteraction: payload.requireInteraction,
+        silent: payload.silent,
+        icon: payload.icon,
+        badge: payload.badge,
+        data: payload.data
+      };
+      if(reg && reg.showNotification){
+        reg.showNotification(payload.title, opts);
+      } else {
+        new Notification(payload.title, opts);
+      }
+    });
+  }
+  function startNotifyTick(){
+    stopNotifyTick();
+    var a = data.activeSession;
+    if(!a || !a.running || !canNotify()) return;
+    notifyInterval = setInterval(function(){
+      var cur = data.activeSession;
+      if(cur && cur.running) showTimerNotification("running", cur.activity, activeElapsedSec());
+    }, 60000);
+  }
+  function stopNotifyTick(){
+    if(notifyInterval){ clearInterval(notifyInterval); notifyInterval = null; }
+  }
 
   // ---------- Timer core ----------
   function activeElapsedSec(){
@@ -100,6 +221,8 @@
     save();
     renderTimer();
     startTick();
+    showTimerNotification("running", activity, 0);
+    startNotifyTick();
   }
   function pauseTimer(){
     var a = data.activeSession;
@@ -110,6 +233,8 @@
     save();
     renderTimer();
     stopTick();
+    showTimerNotification("paused", a.activity, a.elapsedBeforePause);
+    stopNotifyTick();
   }
   function resumeTimer(){
     var a = data.activeSession;
@@ -119,6 +244,8 @@
     save();
     renderTimer();
     startTick();
+    showTimerNotification("running", a.activity, a.elapsedBeforePause);
+    startNotifyTick();
   }
   function stopTimer(){
     var a = data.activeSession;
@@ -132,6 +259,9 @@
     data.activeSession = null;
     save();
     stopTick();
+    stopNotifyTick();
+    closeActiveTimerNotification();
+    showTimerNotification("done", a.activity, elapsed);
     renderTimer();
     renderTasks();
     renderFooterStats();
@@ -253,6 +383,15 @@
 
   // ---------- Progress tab ----------
   function renderProgress(){
+    var todayTotal = dayTotalSec(getRecord(todayKey()));
+    var weekTotal = 0;
+    for(var wi=6;wi>=0;wi--){
+      weekTotal += dayTotalSec(data.records[todayKey(daysAgo(wi))]);
+    }
+    document.getElementById("progress-today").textContent = fmtDur(todayTotal);
+    document.getElementById("progress-week").textContent = fmtDur(weekTotal);
+    document.getElementById("progress-total").textContent = fmtDur(allTimeTotalSec());
+
     var chart = document.getElementById("week-chart");
     chart.innerHTML = "";
     var labels = ["M","T","W","T","F","S","S"];
@@ -278,18 +417,21 @@
       chart.appendChild(col);
     }
 
-    var ap = document.getElementById("activity-progress");
-    ap.innerHTML = "";
     var totals = {};
-    for(var i=29;i>=0;i--){
-      var r = data.records[todayKey(daysAgo(i))];
+    Object.keys(data.records).forEach(function(k){
+      var r = data.records[k];
       if(r && r.sessions) r.sessions.forEach(function(s){
         totals[s.activity] = (totals[s.activity]||0) + s.durationSec;
       });
-    }
+    });
+    renderActivityBars(document.getElementById("activity-progress"), totals, "No activity logged yet.");
+  }
+
+  function renderActivityBars(container, totals, emptyText){
+    container.innerHTML = "";
     var keys = Object.keys(totals).sort(function(a,b){ return totals[b]-totals[a]; });
     if(!keys.length){
-      ap.innerHTML = '<div class="empty">No activity logged in the last 30 days.</div>';
+      container.innerHTML = '<div class="empty">' + emptyText + '</div>';
     } else {
       var grand = keys.reduce(function(s,k){ return s+totals[k]; },0) || 1;
       keys.slice(0,10).forEach(function(name){
@@ -298,9 +440,9 @@
         row.className = "habit-row";
         row.innerHTML =
           '<div class="hr-name">' + escapeHtml(name) + '</div>' +
-          '<div class="hr-track"><div class="hr-fill" style="width:' + pct + '%; background:var(--green);"></div></div>' +
+          '<div class="hr-track"><div class="hr-fill" style="width:' + pct + '%; background:var(--blue);"></div></div>' +
           '<div class="hr-pct">' + fmtDur(totals[name]) + '</div>';
-        ap.appendChild(row);
+        container.appendChild(row);
       });
     }
   }
@@ -405,14 +547,31 @@
       var r = data.records[k];
       var totals = {};
       r.sessions.forEach(function(s){ totals[s.activity] = (totals[s.activity]||0)+s.durationSec; });
-      var actLine = Object.keys(totals).map(function(a){ return a + ": " + fmtDur(totals[a]); }).join(", ");
+      var activityKeys = Object.keys(totals).sort(function(a,b){ return totals[b]-totals[a]; });
+      var doneTasks = r.tasks.filter(function(t){ return t.done; }).length;
+      var openTasks = r.tasks.length - doneTasks;
       var d = new Date(k+"T00:00:00");
       var block = document.createElement("div");
       block.className = "day-block";
+      var activityHtml = activityKeys.length ? '<div class="history-subtitle">Activities</div><div class="history-activities">' +
+        activityKeys.map(function(a){
+          return '<span class="history-chip">' + escapeHtml(a) + ' · ' + fmtDur(totals[a]) + '</span>';
+        }).join("") + '</div>' : '<div class="day-block-detail">No timer sessions logged.</div>';
+      var taskHtml = r.tasks.length ? '<div class="history-subtitle">Tasks</div><div class="history-tasks">' +
+        r.tasks.map(function(t){
+          return '<span class="history-chip ' + (t.done ? "task-done" : "task-open") + '">' + (t.done ? "Done · " : "Open · ") + escapeHtml(t.name) + '</span>';
+        }).join("") + '</div>' : "";
       block.innerHTML =
         '<div class="day-block-head"><span class="day-block-date">' + d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}) + '</span>' +
-        '<span class="day-block-meta">' + fmtDur(dayTotalSec(r)) + (r.tasks.length ? " · " + dayTaskPct(r) + "% tasks" : "") + '</span></div>' +
-        (actLine ? '<div class="day-block-detail">' + escapeHtml(actLine) + '</div>' : '');
+        '<span class="day-block-meta">' + fmtDur(dayTotalSec(r)) + '</span></div>' +
+        '<div class="day-block-stats">' +
+          '<div class="day-mini"><strong>' + fmtDur(dayTotalSec(r)) + '</strong><span>tracked</span></div>' +
+          '<div class="day-mini"><strong>' + (r.tasks.length ? dayTaskPct(r) + "%" : "-") + '</strong><span>tasks done</span></div>' +
+          '<div class="day-mini"><strong>' + r.sessions.length + '</strong><span>sessions</span></div>' +
+        '</div>' +
+        activityHtml +
+        (r.tasks.length ? '<div class="day-block-detail">' + doneTasks + ' done, ' + openTasks + ' open</div>' : '') +
+        taskHtml;
       list.appendChild(block);
     });
     document.getElementById("load-more-btn").style.display = historyShown < keys.length ? "" : "none";
@@ -434,6 +593,37 @@
   });
 
   // ---------- Wire up ----------
+  document.getElementById("theme-toggle").addEventListener("click", function(){
+    ui.theme = ui.theme === "dark" ? "light" : "dark";
+    savePrefs();
+    applyTheme();
+  });
+  document.getElementById("notify-btn").addEventListener("click", function(){
+    if(!notificationsSupported()) return;
+    if(Notification.permission === "granted"){
+      ui.notifications = !ui.notifications;
+      savePrefs();
+      renderNotifyButton();
+      if(ui.notifications && data.activeSession){
+        showTimerNotification(data.activeSession.running ? "running" : "paused", data.activeSession.activity, activeElapsedSec());
+        startNotifyTick();
+      } else {
+        stopNotifyTick();
+        closeActiveTimerNotification();
+      }
+      return;
+    }
+    Notification.requestPermission().then(function(permission){
+      ui.notifications = permission === "granted";
+      savePrefs();
+      renderNotifyButton();
+      if(ui.notifications && data.activeSession){
+        showTimerNotification(data.activeSession.running ? "running" : "paused", data.activeSession.activity, activeElapsedSec());
+        startNotifyTick();
+      }
+    });
+  });
+
   document.getElementById("start-btn").addEventListener("click", function(){
     startTimer(document.getElementById("activity-input").value);
   });
@@ -486,13 +676,18 @@
     window.addEventListener("load", function(){
       navigator.serviceWorker.register("sw.js").catch(function(err){
         console.warn("SW registration failed", err);
+      }).then(function(reg){
+        if(reg) swRegistration = reg;
       });
     });
   }
 
   // ---------- Init ----------
+  applyTheme();
+  renderNotifyButton();
   document.getElementById("today-date").textContent = new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
   renderTimer();
   renderTasks();
   renderFooterStats();
+  startNotifyTick();
 })();
